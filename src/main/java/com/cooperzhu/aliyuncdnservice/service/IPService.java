@@ -16,12 +16,20 @@ public class IPService {
     }
 
     public String getPublicIp() {
-        String ip = this.getPublicIpBySohu();
+        String ip = null;
+        // ip = this.getPublicIpBySohu();
+        ip = this.getPublicIpByIpinfo();
+        ip = ip != null ? ip : this.getPublicIpByAmazonaws();
         ip = ip != null ? ip : this.getPublicIpByIpify();
         return IPAddressUtil.isValid(ip) ? ip: null;
     }
 
     //region private
+
+    /**
+     * 已観
+     * @return
+     */
     private String getPublicIpBySohu() {
         String url = "http://txt.go.sohu.com/ip/soip";
 
@@ -44,6 +52,28 @@ public class IPService {
             return null;
         }
     }
+
+    private String getPublicIpByIpinfo() {
+        return this.getSimpleIp("https://ipinfo.io/ip");
+    }
+
+    private String getPublicIpByAmazonaws() {
+        return this.getSimpleIp("https://checkip.amazonaws.com/");
+    }
+
+    private String getSimpleIp(String url) {
+        OkHttpClient client = new OkHttpClient();
+        Request request = new Request.Builder()
+                .url(url)
+                .build();
+
+        try (Response response = client.newCall(request).execute()) {
+            return response.body().string();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
 
     /**
      * see https://www.ipify.org/

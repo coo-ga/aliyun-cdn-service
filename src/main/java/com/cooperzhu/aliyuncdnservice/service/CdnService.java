@@ -29,6 +29,10 @@ public class CdnService {
 
     public void checkAndUpdate() {
         String ip = this.ipService.getPublicIp();
+        if (ip == null) {
+            log.error("无法获取公网ip，终止更新CDN");
+            return;
+        }
 
         try {
             Client client = createClient();
