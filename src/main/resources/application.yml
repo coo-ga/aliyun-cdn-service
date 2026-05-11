@@ -18,5 +18,6 @@ userconfig:
        end-point: "cdn.aliyuncs.com" # aliyun cdn end-point
        access-key-id: xxx   # aliyun accessKeyId
        access-key-secret: xxx  # aliyun accessKeySecret
+       cert-root-path: xxx # SSL证书根目录（不包含/）
   task:
     period: 30  # unit: min
