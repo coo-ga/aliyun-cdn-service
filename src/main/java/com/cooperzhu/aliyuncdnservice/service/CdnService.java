@@ -2,20 +2,22 @@ package com.cooperzhu.aliyuncdnservice.service;
 
 import com.aliyun.cdn20180510.Client;
 import com.aliyun.cdn20180510.models.*;
-import com.aliyun.tea.NameInMap;
 import com.aliyun.teaopenapi.models.Config;
+import com.cooperzhu.aliyuncdnservice.exception.biz.BizException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -36,31 +38,30 @@ public class CdnService {
 	private Client client;
 	//endregion
 
-	public CdnService() throws Exception {
-		this.client = this.createClient();
-	}
-
 	public String checkAndUpdate() {
-		boolean ip = false;
-		boolean ssl = false;
 		try {
 			var map = this.getDomainsConfigs();
-			ip = this.checkAndUpdateIP(map);
-			ssl = this.checkAndUpdateSSL(map);
-		} catch (Exception ex) {
-			log.error("checkAndUpdate Error", ex);
-		} finally {
+			this.checkAndUpdateIP(map);
+			this.checkAndUpdateSSL(map);
 			return String.format("{\n" +
 					"\t\"ip\":%s,\n" +
 					"\t\"ssl\":%s\n" +
-					"}", ip, ssl);
+					"}", true, true);
+		} catch (BizException e) {
+			throw e;
+		} catch (Exception ex) {
+			log.error("checkAndUpdate Error", ex);
+			return String.format("{\n" +
+					"\t\"ip\":%s,\n" +
+					"\t\"ssl\":%s\n" +
+					"}", false, false);
 		}
 	}
 
 	//region get domains configs
 	private Map<String, DescribeUserDomainsResponseBody.DescribeUserDomainsResponseBodyDomainsPageData> getDomainsConfigs() throws Exception {
 		DescribeUserDomainsRequest request = new DescribeUserDomainsRequest();
-		DescribeUserDomainsResponse response = this.client.describeUserDomains(request);
+		DescribeUserDomainsResponse response = this.getClient().describeUserDomains(request);
 		DescribeUserDomainsResponseBody body = response.getBody();
 
 		Map<String, DescribeUserDomainsResponseBody.DescribeUserDomainsResponseBodyDomainsPageData> map = new HashMap<>();
@@ -73,23 +74,20 @@ public class CdnService {
 	//endregion
 
 	//region update ip
-	public boolean checkAndUpdateIP(Map<String, DescribeUserDomainsResponseBody.DescribeUserDomainsResponseBodyDomainsPageData> map) throws Exception {
+	public void checkAndUpdateIP(Map<String, DescribeUserDomainsResponseBody.DescribeUserDomainsResponseBodyDomainsPageData> map) throws Exception {
 		try {
 			String ip = this.ipService.getPublicIp();
 			if (ip == null) {
-				log.error("无法获取公网ip，终止更新CDN");
-				return false;
+				throw new BizException("无法获取公网ip，终止更新CDN");
 			}
 
-			return this.checkAndUpdateIP(ip, map);
+			this.checkAndUpdateIP(ip, map);
 		} catch (Exception ex) {
-			log.error("update IP Error", ex);
-			return false;
+			throw new BizException("update IP Error", ex);
 		}
 	}
 
-	private boolean checkAndUpdateIP(String newIP, Map<String, DescribeUserDomainsResponseBody.DescribeUserDomainsResponseBodyDomainsPageData> map) throws Exception {
-		boolean success = true;
+	private void checkAndUpdateIP(String newIP, Map<String, DescribeUserDomainsResponseBody.DescribeUserDomainsResponseBodyDomainsPageData> map) throws Exception {
 		for (String domain : map.keySet()) {
 			var newSources = this.getUpdateIp(newIP, map.get(domain).getSources().source);
 			if (null != newSources) {
@@ -98,20 +96,17 @@ public class CdnService {
 						.setDomainName(domain)
 						.setSources(sources);
 				try {
-					BatchUpdateCdnDomainResponse response = this.client.batchUpdateCdnDomain(request);
+					BatchUpdateCdnDomainResponse response = this.getClient().batchUpdateCdnDomain(request);
 					if (response.getStatusCode() == 200) {
 						log.info(String.format("update IP success [domain=%s, source=%s]", domain, sources));
 					} else {
-						success = false;
-						log.error(String.format("update IP fail [domain=%s, source=%s, statusCode=%s]", domain, sources, response.getStatusCode()));
+						throw new BizException(String.format("update IP fail [domain=%s, source=%s, statusCode=%s]", domain, sources, response.getStatusCode()));
 					}
 				} catch (Exception ex) {
-					success = false;
-					log.error(String.format("update IP fail [domain=%s, source=%s]", domain, sources), ex);
+					throw new BizException(String.format("update IP fail [domain=%s, source=%s]", domain, sources), ex);
 				}
 			}
 		}
-		return success;
 	}
 
 	private List<DescribeUserDomainsResponseBody.DescribeUserDomainsResponseBodyDomainsPageDataSourcesSource> getUpdateIp(String newIP, List<DescribeUserDomainsResponseBody.DescribeUserDomainsResponseBodyDomainsPageDataSourcesSource> sources) {
@@ -169,7 +164,7 @@ public class CdnService {
 
 	private boolean isNeedUpdateSSL(String domain) throws Exception {
 		var req = new DescribeDomainCertificateInfoRequest().setDomainName(domain);
-		var certBody = this.client.describeDomainCertificateInfo(req).getBody().getCertInfos();
+		var certBody = this.getClient().describeDomainCertificateInfo(req).getBody().getCertInfos();
 
 		if (null == certBody) {
 			return true;
@@ -197,7 +192,7 @@ public class CdnService {
 //					.setCertName("my-latest-cert")      // 新证书名称
 					.setSSLPub(pub)             // 证书内容
 					.setSSLPri(pri); // 私钥内容;
-			var resp = this.client.setCdnDomainSSLCertificate(req);
+			var resp = this.getClient().setCdnDomainSSLCertificate(req);
 			if (resp.getStatusCode() == 200) {
 				log.info(String.format("update SSL success [domain=%s]", domain));
 			} else {
@@ -216,6 +211,17 @@ public class CdnService {
 	//endregion
 
 	//region client
+	private Client getClient() throws Exception {
+		if (this.client == null) {
+			synchronized (this) {
+				if (this.client == null) {
+					this.client = this.createClient();
+				}
+			}
+		}
+		return this.client;
+	}
+
 	private Client createClient() throws Exception {
 		Config config = new Config()
 				.setAccessKeyId(accessKeyId)
