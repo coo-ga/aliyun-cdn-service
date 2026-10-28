@@ -38,10 +38,50 @@ public class CdnService {
 	private Client client;
 	//endregion
 
-	public String checkAndUpdate() {
+	public String checkAndUpdateIp(String ip) {
 		try {
 			var map = this.getDomainsConfigs();
-			this.checkAndUpdateIP(map);
+			this.checkAndUpdateIP(map, ip);
+			return String.format("{\n" +
+					"\t\"ip\":%s\n" +
+					"}", true, true);
+		} catch (BizException e) {
+			throw e;
+		} catch (Exception ex) {
+			log.error("checkAndUpdateIp Error", ex);
+			return String.format("{\n" +
+					"\t\"ip\":%s,\n" +
+					"\t\"message\":\"%s\"\n" +
+					"}", false, false, ex.getMessage());
+		}
+	}
+
+	public String checkAndUpdateSsl() {
+		try {
+			var map = this.getDomainsConfigs();
+			this.checkAndUpdateSSL(map);
+			return String.format("{\n" +
+					"\t\"ssl\":%s\n" +
+					"}", true, true);
+		} catch (BizException e) {
+			throw e;
+		} catch (Exception ex) {
+			log.error("checkAndUpdateSsl Error", ex);
+			return String.format("{\n" +
+					"\t\"ssl\":%s, \n" +
+					"\t\"message\":\"%s\"\n" +
+					"}", false, false, ex.getMessage());
+		}
+	}
+
+	public String checkAndUpdate() {
+		return this.checkAndUpdate(null);
+	}
+
+	public String checkAndUpdate(String ip) {
+		try {
+			var map = this.getDomainsConfigs();
+			this.checkAndUpdateIP(map, ip);
 			this.checkAndUpdateSSL(map);
 			return String.format("{\n" +
 					"\t\"ip\":%s,\n" +
@@ -53,8 +93,9 @@ public class CdnService {
 			log.error("checkAndUpdate Error", ex);
 			return String.format("{\n" +
 					"\t\"ip\":%s,\n" +
-					"\t\"ssl\":%s\n" +
-					"}", false, false);
+					"\t\"ssl\":%s, \n" +
+					"\t\"message\":\"%s\"\n" +
+					"}", false, false, ex.getMessage());
 		}
 	}
 
@@ -74,9 +115,11 @@ public class CdnService {
 	//endregion
 
 	//region update ip
-	public void checkAndUpdateIP(Map<String, DescribeUserDomainsResponseBody.DescribeUserDomainsResponseBodyDomainsPageData> map) throws Exception {
+	public void checkAndUpdateIP(Map<String, DescribeUserDomainsResponseBody.DescribeUserDomainsResponseBodyDomainsPageData> map, String ip) throws Exception {
 		try {
-			String ip = this.ipService.getPublicIp();
+			if (null == ip || ip.isEmpty()) {
+				ip = this.ipService.getPublicIp();
+			}
 			if (ip == null) {
 				throw new BizException("无法获取公网ip，终止更新CDN");
 			}

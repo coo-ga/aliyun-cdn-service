@@ -11,15 +11,15 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Slf4j
 public class CdnCheckTask {
-    @Autowired
-    private CdnService cdnService;
+	@Autowired
+	private CdnService cdnService;
 
-    @Scheduled(fixedDelayString = "${userconfig.task.period}", timeUnit = TimeUnit.MINUTES)
-    public void start() {
-        long begin = System.currentTimeMillis();
-        log.info("begin check");
-        cdnService.checkAndUpdate();
-        long end = System.currentTimeMillis();
-        log.info("finish check in " + (end - begin) + " ms");
-    }
+	@Scheduled(fixedDelayString = "${userconfig.task.period}", timeUnit = TimeUnit.MINUTES)
+	public void start() {
+		long begin = System.currentTimeMillis();
+		log.info("begin check");
+		cdnService.checkAndUpdate();
+		long end = System.currentTimeMillis();
+		log.info("finish check in " + (end - begin) + " ms");
+	}
 }
